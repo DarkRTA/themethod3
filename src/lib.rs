@@ -22,10 +22,7 @@ use aes::cipher::KeyInit;
 use aes::Aes128;
 
 pub fn decrypt_mogg(mogg_data: &mut [u8]) {
-    let firstDecryptedBlock = [0u8; 16];
-    let moggLength = mogg_data.len();
-    let mut HMXAbuf = vec![0u8; moggLength];
-    let ctrKey0B = match mogg_data[0] {
+    let ctr_key_0b = match mogg_data[0] {
         10 => return,
         11 => CTR_KEY_0B,
         12 | 13 => gen_key(&HV_KEY_0C, &mogg_data, 12),
@@ -35,7 +32,7 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
         _ => unreachable!(),
     };
 
-    let oggOffset =
+    let ogg_offset =
         i32::from_le_bytes(mogg_data[4..4 + 4].try_into().unwrap()) as usize;
     let hmx_header_size =
         i32::from_le_bytes(mogg_data[16..16 + 4].try_into().unwrap()) as usize;
@@ -46,14 +43,14 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     let mut nonce_reversed = nonce;
     nonce_reversed.reverse();
 
-    do_crypt(&ctrKey0B, mogg_data, &nonce, oggOffset);
+    do_crypt(&ctr_key_0b, mogg_data, &nonce, ogg_offset);
 
     // check for HMXA
-    if mogg_data[oggOffset] == 0x48 {
-        hmxa_to_ogg(mogg_data, oggOffset, hmx_header_size)
+    if mogg_data[ogg_offset] == 0x48 {
+        hmxa_to_ogg(mogg_data, ogg_offset, hmx_header_size)
     }
     // check if not OggS
-    if mogg_data[oggOffset] != 0x4f {
+    if mogg_data[ogg_offset] != 0x4f {
         mogg_data[0] = 10;
         eprintln!("WARNING: DECRYPT FAILED")
     }
@@ -145,19 +142,6 @@ const HIDDEN_KEYS: [[u8; 32]; 12] = [
         0x60, 0x4d, 0xdd, 0x45, 0xb5, 0xf4, 0xa0, 0x05,
     ],
 ];
-
-fn hex_char_to_nibble(h: u8) -> u8 {
-    if h > 0x60 {
-        return h - 0x57;
-    }
-    if h > 0x40 {
-        return h - 0x37;
-    }
-    if h <= 0x2f {
-        return 0;
-    }
-    h - 0x30
-}
 
 fn ascii_digit_to_hex(h: u8) -> u8 {
     if (h < 0x61) || (0x66 < h) {
@@ -441,49 +425,49 @@ fn lcg(x: u32) -> u32 {
 }
 
 fn grind_array(
-    mut magicA: u32,
-    mut magicB: u32,
+    mut magic_a: u32,
+    mut magic_b: u32,
     mut key: [u8; 16],
     version: u32,
 ) -> [u8; 16] {
-            let mut i: i32;
+            let mut _i: i32;
             let mut num: u32;
-            let mut numArray = [0u8; 64];
-            let mut numArray1= [0u8; 64];
-            let mut num1: u32 = magicA;
-            let mut num2: u32 = magicB;
-            let mut numArray2 = [0i32; 256];
+            let mut array = [0u8; 64];
+            let mut array1= [0u8; 64];
+            let mut num1: u32 = magic_a;
+            let num2: u32 = magic_b;
+            let mut array2 = [0i32; 256];
 
             for i in 0..0x100 {
-                numArray2[i] = (magicA as u8 >> 3) as i32;
-                magicA = lcg(magicA)
+                array2[i] = (magic_a as u8 >> 3) as i32;
+                magic_a = lcg(magic_a)
             }
 
-            if magicB == 0
+            if magic_b == 0
             {
-                magicB = 0x303f;
+                magic_b = 0x303f;
             }
             
             for i in 0..0x20 {
                 loop
                 {
-                    magicB = lcg(magicB);
-                    num = magicB >> 2 & 0x1f;
-                    if !(numArray[num as usize] != 0) {
+                    magic_b = lcg(magic_b);
+                    num = magic_b >> 2 & 0x1f;
+                    if !(array[num as usize] != 0) {
                         break
                     }
                 }
-                numArray1[i] = num as u8;
-                numArray[num as usize] = 1;
+                array1[i] = num as u8;
+                array[num as usize] = 1;
             }
-            let mut numArray3 = numArray2;
-            let mut numArray4 = [0i32; 256];
-            magicA = num2;
+            let mut array3 = array2;
+            let mut array4 = [0i32; 256];
+            magic_a = num2;
 
             for i in 0..256
             {
-                numArray4[i] = (magicA as u8 >> 2 & 0x3f) as i32;
-                magicA = lcg(magicA)
+                array4[i] = (magic_a as u8 >> 2 & 0x3f) as i32;
+                magic_a = lcg(magic_a)
             }
 
             if version > 13
@@ -494,21 +478,21 @@ fn grind_array(
                     {
                         num1 = lcg(num1);
                         num = (num1 >> 2 & 0x1f) + 0x20;
-                        if !(numArray[num as usize] != 0) {
+                        if !(array[num as usize] != 0) {
                             break
                         }
                     }
-                    numArray1[i] = num as u8;
-                    numArray[num as usize] = 1;
+                    array1[i] = num as u8;
+                    array[num as usize] = 1;
                 }
-                numArray3 = numArray4;
+                array3 = array4;
             }
             for j in 0..16 
             {
                 let mut num3 = key[j];
                 for k in (0..16).step_by(2)
                 {
-                    num3 = o_funcs(num3, key[k + 1], numArray1[numArray3[key[k] as usize] as usize]);
+                    num3 = o_funcs(num3, key[k + 1], array1[array3[key[k] as usize] as usize]);
                 }
                 key[j] = num3;
             }

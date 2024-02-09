@@ -209,7 +209,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "toasters"
+name = "themethod3"
 version = "0.1.0"
 dependencies = [
  "aes",
