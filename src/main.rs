@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::io::Write;
 
 #[derive(Parser)]
 struct Args {
