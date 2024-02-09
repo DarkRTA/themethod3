@@ -23,6 +23,7 @@ use aes::Aes128;
 
 use log::error;
 use log::warn;
+use log::info;
 use log::debug;
 use log::trace;
 
@@ -240,7 +241,7 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     let mut key_mask_360_as_read = [0u8; 16];
 
     let masher = get_masher();
-    debug!("masher: {masher:X?}");
+    debug!("masher: {masher:02X?}");
 
     mogg.seek(SeekFrom::Start(16)).unwrap();
     let mut buf = [0u8; 4];
@@ -269,8 +270,8 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
         _ => unreachable!(),
     }
 
-    debug!("keyMaskPS3: {key_mask_ps3:X?}");
-    debug!("keyMask360: {key_mask_360:X?}");
+    debug!("keyMaskPS3: {key_mask_ps3:02X?}");
+    debug!("keyMask360: {key_mask_360:02X?}");
 
     mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16))
         .unwrap();
@@ -286,8 +287,8 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     let key_index_ps3 = key_index_as_read % 6;
     let key_index_360 = key_index_as_read % 6 + 6;
 
-    debug!("keyIndexPS3: {key_index_ps3:X?}");
-    debug!("keyIndex360: {key_index_360:X?}");
+    debug!("keyIndexPS3: {key_index_ps3:02X?}");
+    debug!("keyIndex360: {key_index_360:02X?}");
 
     let selected_key_ps3;
     let selected_key_360;
@@ -299,28 +300,28 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
         _ => unreachable!(),
     }
 
-    debug!("selectedKeyPS3: {selected_key_ps3:X?}");
-    debug!("selectedKey360: {selected_key_360:X?}");
+    debug!("selectedKeyPS3: {selected_key_ps3:02X?}");
+    debug!("selectedKey360: {selected_key_360:02X?}");
 
     let revealed_key_ps3 = reveal_key(selected_key_ps3, masher);
     let revealed_key_360 = reveal_key(selected_key_360, masher);
 
-    debug!("revealedKeyPS3 hex: {revealed_key_ps3:X?}");
-    debug!("revealedKey360 hex: {revealed_key_360:X?}");
+    debug!("revealedKeyPS3 hex: {revealed_key_ps3:02X?}");
+    debug!("revealedKey360 hex: {revealed_key_360:02X?}");
 
     let bytes_from_hex_string_ps3 = hex_string_to_bytes(revealed_key_ps3);
     let bytes_from_hex_string_360 = hex_string_to_bytes(revealed_key_360);
 
-    debug!("revealedKeyPS3 char: {bytes_from_hex_string_ps3:X?}");
-    debug!("revealedKey360 char: {bytes_from_hex_string_360:X?}");
+    debug!("revealedKeyPS3 char: {bytes_from_hex_string_ps3:02X?}");
+    debug!("revealedKey360 char: {bytes_from_hex_string_360:02X?}");
 
     let grind_array_result_ps3 =
         grind_array(magic_a, magic_b, bytes_from_hex_string_ps3, version);
     let grind_array_result_360 =
         grind_array(magic_a, magic_b, bytes_from_hex_string_360, version);
 
-    debug!("grind_array_result_PS3 char: {grind_array_result_ps3:X?}");
-    debug!("grind_array_result_360 char: {grind_array_result_360:X?}");
+    debug!("grind_array_result_PS3 char: {grind_array_result_ps3:02X?}");
+    debug!("grind_array_result_360 char: {grind_array_result_360:02X?}");
 
     let mut ps3_key = [0u8; 16];
     for i in 0..16 {
@@ -336,8 +337,8 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
         warn!("warning: ps3 key does not match 360 key");
     }
 
-    debug!("ps3_key: {ps3_key:X?}");
-    debug!("360_key: {x360_key:X?}");
+    debug!("ps3_key: {ps3_key:02X?}");
+    debug!("360_key: {x360_key:02X?}");
     x360_key
 }
 
