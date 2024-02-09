@@ -1,15 +1,3 @@
-// mogg v16 is dead
-//
-// ```
-//[package]
-//name = "toasters"
-//version = "0.1.0"
-//edition = "2021"
-//
-//[dependencies]
-//aes = "0.8.3"
-//```
-
 use std::io::Cursor;
 use std::io::Read;
 use std::io::Seek;
