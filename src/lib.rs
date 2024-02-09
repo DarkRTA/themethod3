@@ -25,10 +25,10 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     let ctr_key_0b = match mogg_data[0] {
         10 => return,
         11 => CTR_KEY_0B,
-        12 | 13 => gen_key(&HV_KEY_0C, &mogg_data, 12),
-        14 => gen_key(&HV_KEY_0E, &mogg_data, 14),
-        15 => gen_key(&HV_KEY_0F, &mogg_data, 15),
-        16 => gen_key(&HV_KEY_10, &mogg_data, 16),
+        12 | 13 => gen_key(&HV_KEY_0C, mogg_data, 12),
+        14 => gen_key(&HV_KEY_0E, mogg_data, 14),
+        15 => gen_key(&HV_KEY_0F, mogg_data, 15),
+        16 => gen_key(&HV_KEY_10, mogg_data, 16),
         _ => unreachable!(),
     };
 
@@ -144,8 +144,8 @@ const HIDDEN_KEYS: [[u8; 32]; 12] = [
 ];
 
 fn ascii_digit_to_hex(h: u8) -> u8 {
-    if (h < 0x61) || (0x66 < h) {
-        if (h < 0x41) || (0x46 < h) {
+    if !(0x61..=0x66).contains(&h) {
+        if !(0x41..=0x46).contains(&h) {
             h - 0x30
         } else {
             h - 0x37
@@ -166,26 +166,26 @@ fn do_crypt(
     let mut nonce = file_nonce.to_owned();
     let mut block_mask = [0u8; 16];
     aes.encrypt_block_b2b(
-        GenericArray::from_slice(&mut nonce),
-        &mut GenericArray::from_mut_slice(&mut block_mask),
+        GenericArray::from_slice(&nonce),
+        GenericArray::from_mut_slice(&mut block_mask),
     );
     let mut block_offset = 0;
-    for cursor in ogg_offset..mogg_data.len() {
+    for byte in mogg_data.iter_mut().skip(ogg_offset) {
         if block_offset == 16 {
-            for j in 0..16 {
-                nonce[j] = nonce[j].wrapping_add(1);
-                if nonce[j] != 0 {
+            for j in &mut nonce {
+                *j = j.wrapping_add(1);
+                if *j != 0 {
                     break;
                 }
             }
             aes.encrypt_block_b2b(
-                GenericArray::from_slice(&mut nonce),
-                &mut GenericArray::from_mut_slice(&mut block_mask),
+                GenericArray::from_slice(&nonce),
+                GenericArray::from_mut_slice(&mut block_mask),
             );
             block_offset = 0;
         }
 
-        mogg_data[cursor] = mogg_data[cursor] ^ block_mask[block_offset];
+        *byte ^= block_mask[block_offset];
         block_offset += 1;
     }
 }
@@ -195,7 +195,7 @@ fn get_masher() -> [u8; 32] {
     let mut masher_word: i32 = 0xeb;
     let mut masher = [0i32; 8];
 
-    for idx in 0..8 {
+    for (idx, byte) in masher.iter_mut().enumerate() {
         m_masher_word = 0;
         if idx == 0 {
             m_masher_word = 0xeb;
@@ -205,7 +205,7 @@ fn get_masher() -> [u8; 32] {
         }
         masher_word =
             masher_word.wrapping_mul(0x19660e).wrapping_add(0x3c6ef35f);
-        masher[idx] = masher_word;
+        *byte = masher_word;
     }
 
     let mut out = Vec::new();
@@ -219,14 +219,14 @@ fn get_masher() -> [u8; 32] {
 
 fn read_u32_le<T: Read>(stream: &mut T) -> u32 {
     let mut buf = [0u8; 4];
-    stream.read(&mut buf).unwrap();
-    u32::from_le_bytes(buf) as u32
+    stream.read_exact(&mut buf).unwrap();
+    u32::from_le_bytes(buf)
 }
 
 fn read_u64_le<T: Read>(stream: &mut T) -> u64 {
     let mut buf = [0u8; 8];
-    stream.read(&mut buf).unwrap();
-    u64::from_le_bytes(buf) as u64
+    stream.read_exact(&mut buf).unwrap();
+    u64::from_le_bytes(buf)
 }
 
 fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
@@ -239,26 +239,26 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
 
     mogg.seek(SeekFrom::Start(16)).unwrap();
     let mut buf = [0u8; 4];
-    mogg.read(&mut buf).unwrap();
+    mogg.read_exact(&mut buf).unwrap();
     let hmx_header_size = u32::from_le_bytes(buf) as u64;
 
     mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 16))
         .unwrap();
-    mogg.read(&mut key_mask_ps3_as_read).unwrap();
+    mogg.read_exact(&mut key_mask_ps3_as_read).unwrap();
 
     mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 32))
         .unwrap();
-    mogg.read(&mut key_mask_360_as_read).unwrap();
+    mogg.read_exact(&mut key_mask_360_as_read).unwrap();
 
     let key_mask_ps3 = key_mask_ps3_as_read;
 
     let aes_360 = Aes128::new(hv_key.into());
     let mut key_mask_360 = [0u8; 16];
     match version {
-        12 | 13 | 14 | 15 | 16 => {
+        12..=16 => {
             aes_360.decrypt_block_b2b(
-                GenericArray::from_slice(&mut key_mask_360_as_read),
-                &mut GenericArray::from_mut_slice(&mut key_mask_360),
+                GenericArray::from_slice(&key_mask_360_as_read),
+                GenericArray::from_mut_slice(&mut key_mask_360),
             );
         }
         _ => unreachable!(),
@@ -287,7 +287,7 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     let selected_key_ps3;
     let selected_key_360;
     match version {
-        12 | 13 | 14 | 15 | 16 => {
+        12..=16 => {
             selected_key_ps3 = HIDDEN_KEYS[key_index_ps3 as usize];
             selected_key_360 = HIDDEN_KEYS[key_index_360 as usize];
         }
@@ -438,8 +438,8 @@ fn grind_array(
             let num2: u32 = magic_b;
             let mut array2 = [0i32; 256];
 
-            for i in 0..0x100 {
-                array2[i] = (magic_a as u8 >> 3) as i32;
+            for item in &mut array2 {
+                *item = (magic_a as u8 >> 3) as i32;
                 magic_a = lcg(magic_a)
             }
 
@@ -448,12 +448,13 @@ fn grind_array(
                 magic_b = 0x303f;
             }
             
+            #[allow(clippy::needless_range_loop)]
             for i in 0..0x20 {
                 loop
                 {
                     magic_b = lcg(magic_b);
                     num = magic_b >> 2 & 0x1f;
-                    if !(array[num as usize] != 0) {
+                    if array[num as usize] == 0 {
                         break
                     }
                 }
@@ -464,21 +465,22 @@ fn grind_array(
             let mut array4 = [0i32; 256];
             magic_a = num2;
 
-            for i in 0..256
+            for item in &mut array4
             {
-                array4[i] = (magic_a as u8 >> 2 & 0x3f) as i32;
+                *item = (magic_a as u8 >> 2 & 0x3f) as i32;
                 magic_a = lcg(magic_a)
             }
 
             if version > 13
             {
+                #[allow(clippy::needless_range_loop)]
                 for i in 32..64 
                 {
                     loop
                     {
                         num1 = lcg(num1);
                         num = (num1 >> 2 & 0x1f) + 0x20;
-                        if !(array[num as usize] != 0) {
+                        if array[num as usize] == 0 {
                             break
                         }
                     }
@@ -496,7 +498,7 @@ fn grind_array(
                 }
                 key[j] = num3;
             }
-            return key;
+            key
 }
 
 fn rotr(x: i32, n: u32) -> i32 {
@@ -528,19 +530,19 @@ fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
         6 => a2 + rotl(a1, 2),
         7 => a2 + not(a1),
         8 => a2 ^ rotr(a1, not(a2) as u32),
-        9 => a2 ^ a2 + rotl(a1, 3),
+        9 => a2 ^ (a2 + rotl(a1, 3)),
         10 => a2 + rotl(a1, 3),
         11 => a2 + rotl(a1, 4),
         12 => a1 ^ a2,
         13 => a2 ^ not(a1),
-        14 => a2 ^ a2 + rotr(a1, 3),
+        14 => a2 ^ (a2 + rotr(a1, 3)),
         15 => a2 ^ rotl(a1, 3),
         16 => a2 ^ rotl(a1, 2),
         17 => a2 + (a2 ^ rotl(a1, 3)),
         18 => a2 + (a1 ^ a2),
         19 => a1 + a2,
         20 => a2 ^ rotr(a1, 3),
-        21 => a2 ^ a1 + a2,
+        21 => a2 ^ (a1 + a2),
         22 => rotr(a1, not(a2) as u32),
         23 => a2 + rotr(a1, 1),
         24 => a1 >> (a2 & 7 & 31) | a1 << (-a2 & 7 & 31),
