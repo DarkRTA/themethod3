@@ -23,7 +23,6 @@ use aes::Aes128;
 
 use log::error;
 use log::warn;
-use log::info;
 use log::debug;
 use log::trace;
 
