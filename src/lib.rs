@@ -430,75 +430,71 @@ fn grind_array(
     mut key: [u8; 16],
     version: u32,
 ) -> [u8; 16] {
-            let mut _i: i32;
-            let mut num: u32;
-            let mut array = [0u8; 64];
-            let mut array1= [0u8; 64];
-            let mut num1: u32 = magic_a;
-            let num2: u32 = magic_b;
-            let mut array2 = [0i32; 256];
+    let mut _i: i32;
+    let mut num: u32;
+    let mut array = [0u8; 64];
+    let mut array1 = [0u8; 64];
+    let mut num1: u32 = magic_a;
+    let num2: u32 = magic_b;
+    let mut array2 = [0i32; 256];
 
-            for item in &mut array2 {
-                *item = (magic_a as u8 >> 3) as i32;
-                magic_a = lcg(magic_a)
-            }
+    for item in &mut array2 {
+        *item = (magic_a as u8 >> 3) as i32;
+        magic_a = lcg(magic_a)
+    }
 
-            if magic_b == 0
-            {
-                magic_b = 0x303f;
+    if magic_b == 0 {
+        magic_b = 0x303f;
+    }
+
+    #[allow(clippy::needless_range_loop)]
+    for i in 0..0x20 {
+        loop {
+            magic_b = lcg(magic_b);
+            num = magic_b >> 2 & 0x1f;
+            if array[num as usize] == 0 {
+                break;
             }
-            
-            #[allow(clippy::needless_range_loop)]
-            for i in 0..0x20 {
-                loop
-                {
-                    magic_b = lcg(magic_b);
-                    num = magic_b >> 2 & 0x1f;
-                    if array[num as usize] == 0 {
-                        break
-                    }
+        }
+        array1[i] = num as u8;
+        array[num as usize] = 1;
+    }
+    let mut array3 = array2;
+    let mut array4 = [0i32; 256];
+    magic_a = num2;
+
+    for item in &mut array4 {
+        *item = (magic_a as u8 >> 2 & 0x3f) as i32;
+        magic_a = lcg(magic_a)
+    }
+
+    if version > 13 {
+        #[allow(clippy::needless_range_loop)]
+        for i in 32..64 {
+            loop {
+                num1 = lcg(num1);
+                num = (num1 >> 2 & 0x1f) + 0x20;
+                if array[num as usize] == 0 {
+                    break;
                 }
-                array1[i] = num as u8;
-                array[num as usize] = 1;
             }
-            let mut array3 = array2;
-            let mut array4 = [0i32; 256];
-            magic_a = num2;
-
-            for item in &mut array4
-            {
-                *item = (magic_a as u8 >> 2 & 0x3f) as i32;
-                magic_a = lcg(magic_a)
-            }
-
-            if version > 13
-            {
-                #[allow(clippy::needless_range_loop)]
-                for i in 32..64 
-                {
-                    loop
-                    {
-                        num1 = lcg(num1);
-                        num = (num1 >> 2 & 0x1f) + 0x20;
-                        if array[num as usize] == 0 {
-                            break
-                        }
-                    }
-                    array1[i] = num as u8;
-                    array[num as usize] = 1;
-                }
-                array3 = array4;
-            }
-            for j in 0..16 
-            {
-                let mut num3 = key[j];
-                for k in (0..16).step_by(2)
-                {
-                    num3 = o_funcs(num3, key[k + 1], array1[array3[key[k] as usize] as usize]);
-                }
-                key[j] = num3;
-            }
-            key
+            array1[i] = num as u8;
+            array[num as usize] = 1;
+        }
+        array3 = array4;
+    }
+    for j in 0..16 {
+        let mut num3 = key[j];
+        for k in (0..16).step_by(2) {
+            num3 = o_funcs(
+                num3,
+                key[k + 1],
+                array1[array3[key[k] as usize] as usize],
+            );
+        }
+        key[j] = num3;
+    }
+    key
 }
 
 fn rotr(x: i32, n: u32) -> i32 {
@@ -598,7 +594,6 @@ fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
         _ => unreachable!(),
     }) as u8
 }
-
 
 fn hmxa_to_ogg(mogg_data: &mut [u8], start: usize, num_entries: usize) {
     let magic_a = u32::from_le_bytes(
