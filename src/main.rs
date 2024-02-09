@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::io::Write;
 
 #[derive(Parser)]
 struct Args {
@@ -7,6 +8,12 @@ struct Args {
 }
 
 fn main() {
+    env_logger::Builder::new()
+        .format_timestamp(None)
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
+
     let args = Args::parse();
 
     let mut mogg_data = std::fs::read(args.infile).unwrap();

@@ -21,6 +21,12 @@ use aes::cipher::BlockEncrypt;
 use aes::cipher::KeyInit;
 use aes::Aes128;
 
+use log::error;
+use log::warn;
+use log::info;
+use log::debug;
+use log::trace;
+
 pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     let ctr_key_0b = match mogg_data[0] {
         10 => return,
@@ -52,7 +58,7 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     // check if not OggS
     if mogg_data[ogg_offset] != 0x4f {
         mogg_data[0] = 10;
-        eprintln!("WARNING: DECRYPT FAILED")
+        error!("failed to decrypt mogg")
     }
 
     mogg_data[0] = 10;
@@ -235,7 +241,7 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     let mut key_mask_360_as_read = [0u8; 16];
 
     let masher = get_masher();
-    println!("masher: {masher:X?}");
+    debug!("masher: {masher:X?}");
 
     mogg.seek(SeekFrom::Start(16)).unwrap();
     let mut buf = [0u8; 4];
@@ -264,8 +270,8 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
         _ => unreachable!(),
     }
 
-    println!("keyMaskPS3: {key_mask_ps3:X?}");
-    println!("keyMask360: {key_mask_360:X?}");
+    debug!("keyMaskPS3: {key_mask_ps3:X?}");
+    debug!("keyMask360: {key_mask_360:X?}");
 
     mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16))
         .unwrap();
@@ -281,8 +287,8 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     let key_index_ps3 = key_index_as_read % 6;
     let key_index_360 = key_index_as_read % 6 + 6;
 
-    println!("keyIndexPS3: {key_index_ps3:X?}");
-    println!("keyIndex360: {key_index_360:X?}");
+    debug!("keyIndexPS3: {key_index_ps3:X?}");
+    debug!("keyIndex360: {key_index_360:X?}");
 
     let selected_key_ps3;
     let selected_key_360;
@@ -294,28 +300,28 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
         _ => unreachable!(),
     }
 
-    println!("selectedKeyPS3: {selected_key_ps3:X?}");
-    println!("selectedKey360: {selected_key_360:X?}");
+    debug!("selectedKeyPS3: {selected_key_ps3:X?}");
+    debug!("selectedKey360: {selected_key_360:X?}");
 
     let revealed_key_ps3 = reveal_key(selected_key_ps3, masher);
     let revealed_key_360 = reveal_key(selected_key_360, masher);
 
-    println!("revealedKeyPS3 hex: {revealed_key_ps3:X?}");
-    println!("revealedKey360 hex: {revealed_key_360:X?}");
+    debug!("revealedKeyPS3 hex: {revealed_key_ps3:X?}");
+    debug!("revealedKey360 hex: {revealed_key_360:X?}");
 
     let bytes_from_hex_string_ps3 = hex_string_to_bytes(revealed_key_ps3);
     let bytes_from_hex_string_360 = hex_string_to_bytes(revealed_key_360);
 
-    println!("revealedKeyPS3 char: {bytes_from_hex_string_ps3:X?}");
-    println!("revealedKey360 char: {bytes_from_hex_string_360:X?}");
+    debug!("revealedKeyPS3 char: {bytes_from_hex_string_ps3:X?}");
+    debug!("revealedKey360 char: {bytes_from_hex_string_360:X?}");
 
     let grind_array_result_ps3 =
         grind_array(magic_a, magic_b, bytes_from_hex_string_ps3, version);
     let grind_array_result_360 =
         grind_array(magic_a, magic_b, bytes_from_hex_string_360, version);
 
-    println!("grind_array_resut_PS3 char: {grind_array_result_ps3:X?}");
-    println!("grind_array_resut_360 char: {grind_array_result_360:X?}");
+    debug!("grind_array_result_PS3 char: {grind_array_result_ps3:X?}");
+    debug!("grind_array_result_360 char: {grind_array_result_360:X?}");
 
     let mut ps3_key = [0u8; 16];
     for i in 0..16 {
@@ -328,11 +334,11 @@ fn gen_key(hv_key: &[u8; 16], mogg_data: &[u8], version: u32) -> [u8; 16] {
     }
 
     if ps3_key != x360_key {
-        eprintln!("warning: ps3 key does not match 360 key");
+        warn!("warning: ps3 key does not match 360 key");
     }
 
-    println!("ps3_key: {ps3_key:X?}");
-    println!("360_key: {x360_key:X?}");
+    debug!("ps3_key: {ps3_key:X?}");
+    debug!("360_key: {x360_key:X?}");
     x360_key
 }
 
@@ -516,7 +522,7 @@ fn not(x: i32) -> i32 {
 fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
     let a1 = a1 as i32;
     let a2 = a2 as i32;
-    (match op {
+    let ret = (match op {
         0 => a2 + rotr(a1, not(a2) as u32),
         1 => a2 + rotr(a1, 3),
         2 => a2 + rotl(a1, 1),
@@ -592,7 +598,10 @@ fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
         62 => (a1 ^ 255 | a1 << 8 | 175) >> 6 ^ a2,
         63 => (a1 ^ 255 | a1 << 8) >> 2 ^ a2,
         _ => unreachable!(),
-    }) as u8
+    }) as u8;
+
+    trace!("o_func: a1 {a1:2X}, a2: {a2:2X}, ret: {ret:2X}, op{op}");
+    ret
 }
 
 fn hmxa_to_ogg(mogg_data: &mut [u8], start: usize, num_entries: usize) {
