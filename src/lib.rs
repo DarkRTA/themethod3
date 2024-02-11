@@ -14,6 +14,22 @@ use log::trace;
 use log::warn;
 
 pub fn decrypt_mogg(mogg_data: &mut [u8]) {
+    
+    let version = mogg_data[0];
+    
+    debug!("version: {}", version);
+
+    match version {
+        10 => return,
+        11 => debug!("actual_key: {}", hex::encode(CTR_KEY_0B)),
+        12 | 13 => debug!("HvKey: 12/13, {}", hex::encode(HV_KEY_0C)),
+        14 => debug!("HvKey: 14, {}", hex::encode(HV_KEY_0E)),
+        15 => debug!("HvKey: 15, {}", hex::encode(HV_KEY_0F)),
+        16 => debug!("HvKey: 16, {}", hex::encode(HV_KEY_10)),
+        17 => debug!("HvKey: 17, {}", hex::encode(HV_KEY_11)),
+        _ => unreachable!(),
+    };
+
     let ctr_key_0b = match mogg_data[0] {
         10 => return,
         11 => CTR_KEY_0B,
@@ -33,6 +49,7 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     let nonce_offset = 20 + hmx_header_size * 8;
     let mut nonce = [0u8; 16];
     nonce.copy_from_slice(&mogg_data[nonce_offset..nonce_offset + 16]);
+    debug!("nonce: {}", hex::encode(nonce));
     let mut nonce_reversed = nonce;
     nonce_reversed.reverse();
 
@@ -953,9 +970,15 @@ fn hmxa_to_ogg(mogg_data: &mut [u8], start: usize, num_entries: usize) {
             .try_into()
             .unwrap(),
     );
+    debug!("magic_a: {magic_a:08x}");
+    debug!("magic_b: {magic_b:08x}");
+    
     let magic_hash_a = lcg(lcg(magic_a ^ 0x5c5c5c5c));
     let magic_hash_b = lcg(magic_b ^ 0x36363636);
 
+    debug!("magic_hash_a: {magic_hash_a:08x}");
+    debug!("magic_hash_b: {magic_hash_b:08x}");
+    
     mogg_data[start..][..4].copy_from_slice(&[0x4f, 0x67, 0x67, 0x53]);
 
     let slice_a = &mut mogg_data[start + 12..][..4];
