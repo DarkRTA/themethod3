@@ -535,20 +535,15 @@ fn read_u64_le<T: Read>(stream: &mut T) -> u64 {
 }
 
 fn gen_key(hv_key: &[u8; 16], mogg_data: &mut [u8], version: u32) -> [u8; 16] {
-    if version < 17 {
-        debug!("generating ps3 key");
-        let ps3 = gen_key_inner(hv_key, mogg_data, version, true);
-        debug!("generating xbox 360 key");
-        let x360 = gen_key_inner(hv_key, mogg_data, version, false);
+    debug!("generating ps3 key");
+    let ps3 = gen_key_inner(hv_key, mogg_data, version, true);
+    debug!("generating xbox 360 key");
+    let x360 = gen_key_inner(hv_key, mogg_data, version, false);
 
-        if ps3 != x360 {
-            warn!("PS3 key does not match Xbox 360 key");
-        }
-        x360
-    } else {
-        debug!("generating ps4 v17 key");
-        gen_key_inner(hv_key, mogg_data, version, false)
+    if ps3 != x360 {
+        warn!("PS3 key does not match Xbox 360 key");
     }
+    x360
 }
 
 fn gen_key_inner(
@@ -642,8 +637,8 @@ fn gen_key_inner(
             6 => HIDDEN_KEYS_17_6[key_index as usize],
             8 => HIDDEN_KEYS_17_8[key_index as usize],
             10 => HIDDEN_KEYS_17_10[key_index as usize],
-            _ => unimplemented!()
-        }
+            _ => unimplemented!(),
+        },
         _ => unreachable!(),
     };
 
