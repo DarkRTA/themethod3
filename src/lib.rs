@@ -465,9 +465,9 @@ const HIDDEN_KEYS_17_10: [[u8; 32]; 12] = [
 fn ascii_digit_to_hex(h: u8) -> u8 {
     if !(0x61..=0x66).contains(&h) {
         if !(0x41..=0x46).contains(&h) {
-            h - 0x30
+            h.wrapping_sub(0x30)
         } else {
-            h - 0x37
+            h.wrapping_sub(0x37)
         }
     } else {
         h.wrapping_add(0xa9)
