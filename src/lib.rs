@@ -8,7 +8,6 @@ use aes::cipher::BlockDecrypt;
 use aes::cipher::BlockEncrypt;
 use aes::cipher::KeyInit;
 use aes::Aes128;
-
 use log::debug;
 use log::error;
 use log::trace;
@@ -207,10 +206,10 @@ const HIDDEN_KEYS_17_1: [[u8; 32]; 12] = [
 
 // mix drop
 const HIDDEN_KEYS_17_4: [[u8; 32]; 12] = [
-    [ 
+    [
         0x53, 0xb6, 0x2e, 0xf4, 0xe7, 0xec, 0x46, 0x0a, 0xd2, 0xa7, 0x9a, 0xb7,
         0x6f, 0x00, 0xb6, 0xe8, 0x04, 0x6d, 0x28, 0xd0, 0xf3, 0xaf, 0xa6, 0x5d,
-        0xe5, 0x27, 0xb9, 0x06, 0xb6, 0x69, 0xa2, 0xd6, 
+        0xe5, 0x27, 0xb9, 0x06, 0xb6, 0x69, 0xa2, 0xd6,
     ],
     [
         0x1b, 0xf1, 0x33, 0x88, 0xc6, 0xce, 0x99, 0xf8, 0x72, 0x3a, 0x39, 0x94,
@@ -461,19 +460,6 @@ const HIDDEN_KEYS_17_10: [[u8; 32]; 12] = [
     ],
 ];
 
-                                                           
-fn ascii_digit_to_hex(h: u8) -> u8 {
-    if !(0x61..=0x66).contains(&h) {
-        if !(0x41..=0x46).contains(&h) {
-            h.wrapping_sub(0x30)
-        } else {
-            h.wrapping_sub(0x37)
-        }
-    } else {
-        h.wrapping_add(0xa9)
-    }
-}
-
 fn do_crypt(
     key: &[u8; 16],
     mogg_data: &mut [u8],
@@ -549,16 +535,20 @@ fn read_u64_le<T: Read>(stream: &mut T) -> u64 {
 }
 
 fn gen_key(hv_key: &[u8; 16], mogg_data: &mut [u8], version: u32) -> [u8; 16] {
-    debug!("generating ps3 key");
-    let ps3 = gen_key_inner(hv_key, mogg_data, version, true);
-    debug!("generating xbox 360 key");
-    let x360 = gen_key_inner(hv_key, mogg_data, version, false);
+    if version < 17 {
+        debug!("generating ps3 key");
+        let ps3 = gen_key_inner(hv_key, mogg_data, version, true);
+        debug!("generating xbox 360 key");
+        let x360 = gen_key_inner(hv_key, mogg_data, version, false);
 
-    if ps3 != x360 {
-        warn!("PS3 key does not match Xbox 360 key");
+        if ps3 != x360 {
+            warn!("PS3 key does not match Xbox 360 key");
+        }
+        x360
+    } else {
+        debug!("generating ps4 v17 key");
+        gen_key_inner(hv_key, mogg_data, version, false)
     }
-
-    x360
 }
 
 fn gen_key_inner(
@@ -585,7 +575,7 @@ fn gen_key_inner(
         mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 32))
             .unwrap();
     }
-    
+
     mogg.read_exact(&mut key_mask_as_read).unwrap();
 
     debug!("key mask as read: {}", hex::encode(key_mask_as_read));
@@ -597,7 +587,7 @@ fn gen_key_inner(
     } else {
         let aes_360 = Aes128::new(hv_key.into());
         match version {
-            12..=16 => {
+            12..=17 => {
                 aes_360.decrypt_block_b2b(
                     GenericArray::from_slice(&key_mask_as_read),
                     GenericArray::from_mut_slice(&mut key_mask),
@@ -618,26 +608,22 @@ fn gen_key_inner(
     let magic_b = read_u32_le(&mut mogg);
 
     let mut use_new_hidden_keys = 0 as u64;
-    
+
+    mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 48))
+        .unwrap();
     if version == 17 {
-       mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 48))
-           .unwrap();
-       use_new_hidden_keys = read_u64_le(&mut mogg);
-       let mut v17_game = "";
-       match use_new_hidden_keys {
-          1 => v17_game = "arby 4",
-          4 => v17_game = "mix drop",
-          6 => v17_game = "virtua just dance",
-          8 => v17_game = "audi car",
-          10 => v17_game = "blown fuse",
-          _ => unreachable!(),
-       };
-       debug!("use_new_hidden_keys: {use_new_hidden_keys} ({v17_game})");
-    } else {
-       mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 48))
-           .unwrap();
-    };
-    
+        use_new_hidden_keys = read_u64_le(&mut mogg);
+        let v17_game = match use_new_hidden_keys {
+            1 => "arby 4",
+            4 => "mix drop",
+            6 => "virtua just dance",
+            8 => "audi car",
+            10 => "blown fuse",
+            _ => unimplemented!(),
+        };
+        debug!("use_new_hidden_keys: {use_new_hidden_keys} ({v17_game})");
+    }
+
     let key_index_as_read = read_u64_le(&mut mogg);
 
     let key_index = if ps3_path {
@@ -648,26 +634,19 @@ fn gen_key_inner(
 
     debug!("key index: {key_index}");
 
-    let mut selected_key = [0u8; 32];
-    
-    if version < 17 {
-        selected_key = match version {
-            12..=16 => HIDDEN_KEYS[key_index as usize],
-            // TODO: implement other keys
-            //17 => HIDDEN_KEYS_17_1[key_index as usize],
-            _ => unreachable!(),
-        };
-    } else {
-        selected_key = match use_new_hidden_keys {
+    let selected_key = match version {
+        12..=16 => HIDDEN_KEYS[key_index as usize],
+        17 => match use_new_hidden_keys {
             1 => HIDDEN_KEYS_17_1[key_index as usize],
             4 => HIDDEN_KEYS_17_4[key_index as usize],
             6 => HIDDEN_KEYS_17_6[key_index as usize],
             8 => HIDDEN_KEYS_17_8[key_index as usize],
             10 => HIDDEN_KEYS_17_10[key_index as usize],
-            _ => unreachable!(),
-        };
+            _ => unimplemented!()
+        }
+        _ => unreachable!(),
     };
-    
+
     debug!("selectedKey: {}", hex::encode(selected_key));
 
     let revealed_key = reveal_key(selected_key, masher);
@@ -767,11 +746,25 @@ fn roll(x: usize) -> usize {
     (x + 0x13) % 0x20
 }
 
+fn ascii_digit_to_hex(h: u8) -> u8 {
+    if !(0x61..=0x66).contains(&h) {
+        if !(0x41..=0x46).contains(&h) {
+            h.wrapping_sub(0x30)
+        } else {
+            h.wrapping_sub(0x37)
+        }
+    } else {
+        h.wrapping_sub(87)
+    }
+}
+
 fn hex_string_to_bytes(s: [u8; 32]) -> [u8; 16] {
     let mut arr = [0u8; 16];
+
     for i in 0..16 {
-        arr[i] = ascii_digit_to_hex(s[i * 2]) << 4
-            | ascii_digit_to_hex(s[i * 2 + 1]);
+        let lo = ascii_digit_to_hex(s[i * 2 + 1]) as i32;
+        let hi = ascii_digit_to_hex(s[i * 2]) as i32;
+        arr[i] = (lo + hi * 16) as u8
     }
     arr
 }
