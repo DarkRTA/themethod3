@@ -607,7 +607,7 @@ fn gen_key_inner(
         .unwrap();
     let magic_b = read_u32_le(&mut mogg);
 
-    let mut use_new_hidden_keys = 0 as u64;
+    let mut use_new_hidden_keys = 0;
 
     mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 48))
         .unwrap();
@@ -865,7 +865,7 @@ fn not(x: i32) -> i32 {
 fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
     let a1 = a1 as i32;
     let a2 = a2 as i32;
-    let ret = (match op {
+    let ret = match op {
         0 => a2 + rotr(a1, not(a2) as u32),
         1 => a2 + rotr(a1, 3),
         2 => a2 + rotl(a1, 1),
@@ -941,10 +941,10 @@ fn o_funcs(a1: u8, a2: u8, op: u8) -> u8 {
         62 => (a1 ^ 255 | a1 << 8 | 175) >> 6 ^ a2,
         63 => (a1 ^ 255 | a1 << 8) >> 2 ^ a2,
         _ => unreachable!(),
-    }) as u8;
+    };
 
     trace!("o_func: a1 {a1:2X}, a2: {a2:2X}, ret: {ret:2X}, op{op}");
-    ret
+    ret as u8
 }
 
 fn hmxa_to_ogg(mogg_data: &mut [u8], start: usize, num_entries: usize) {
