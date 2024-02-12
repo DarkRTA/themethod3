@@ -56,11 +56,11 @@ pub fn decrypt_mogg(mogg_data: &mut [u8]) {
     do_crypt(&ctr_key_0b, mogg_data, &nonce, ogg_offset);
 
     // check for HMXA
-    if mogg_data[ogg_offset] == 0x48 {
+    if mogg_data[ogg_offset..ogg_offset + 4] == [0x48, 0x4D, 0x58, 0x41] {
         hmxa_to_ogg(mogg_data, ogg_offset, hmx_header_size)
     }
     // check if not OggS
-    if mogg_data[ogg_offset] != 0x4f {
+    if mogg_data[ogg_offset..ogg_offset + 4] != [0x4f, 0x67, 0x67, 0x53]  {
         mogg_data[0] = 10;
         error!("failed to decrypt mogg")
     }
