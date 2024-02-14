@@ -1,5 +1,6 @@
 /target
 *.ignore
+bindings/
 
 # Added by cargo
 #

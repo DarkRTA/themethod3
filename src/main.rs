@@ -14,8 +14,7 @@ fn main() {
         .init();
 
     let args = Args::parse();
-
-    let mut mogg_data = std::fs::read(args.infile).unwrap();
-    themethod3::decrypt_mogg(&mut mogg_data);
+    let mogg_data = std::fs::read(args.infile).unwrap();
+    let mogg_data = themethod3::decrypt_mogg(&mogg_data).unwrap();
     std::fs::write(args.outfile, mogg_data).unwrap();
 }
