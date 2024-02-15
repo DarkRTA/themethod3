@@ -25,7 +25,7 @@ pub mod capi {
             Ok(vec) => {
                 buf.copy_from_slice(&vec);
                 true
-            },
+            }
             Err(_) => false,
         }
     }
@@ -34,7 +34,7 @@ pub mod capi {
 pub fn decrypt_mogg(mogg_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut mogg_data = mogg_data.to_vec();
     let version = mogg_data[0];
-    
+
     debug!("version: {}", version);
 
     match version {
@@ -55,17 +55,31 @@ pub fn decrypt_mogg(mogg_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         15 => gen_key(&keys::HV_KEY_0F, &mut mogg_data, 15)?,
         16 => gen_key(&keys::HV_KEY_10, &mut mogg_data, 16)?,
         17 => gen_key(&keys::HV_KEY_11, &mut mogg_data, 17)?,
-        _ => unreachable!(),
+        _ => return Err("invalid version".into()),
     };
 
-    let ogg_offset =
-        i32::from_le_bytes(mogg_data[4..4 + 4].try_into().unwrap()) as usize;
-    let hmx_header_size =
-        i32::from_le_bytes(mogg_data[16..16 + 4].try_into().unwrap()) as usize;
+    let ogg_offset = i32::from_le_bytes(
+        mogg_data
+            .get(4..4 + 4)
+            .ok_or("invalid index")?
+            .try_into()
+            .unwrap(),
+    ) as usize;
+    let hmx_header_size = i32::from_le_bytes(
+        mogg_data
+            .get(16..16 + 4)
+            .ok_or("invalid index")?
+            .try_into()
+            .unwrap(),
+    ) as usize;
 
     let nonce_offset = 20 + hmx_header_size * 8;
     let mut nonce = [0u8; 16];
-    nonce.copy_from_slice(&mogg_data[nonce_offset..nonce_offset + 16]);
+    nonce.copy_from_slice(
+        &mogg_data
+            .get(nonce_offset..nonce_offset + 16)
+            .ok_or("invalid index")?,
+    );
     debug!("nonce: {}", hex::encode(nonce));
     let mut nonce_reversed = nonce;
     nonce_reversed.reverse();
@@ -73,14 +87,22 @@ pub fn decrypt_mogg(mogg_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     do_crypt(&ctr_key_0b, &mut mogg_data, &nonce, ogg_offset);
 
     // check for HMXA
-    if mogg_data[ogg_offset..ogg_offset + 4] == [0x48, 0x4D, 0x58, 0x41] {
+    if mogg_data
+        .get(ogg_offset..ogg_offset + 4)
+        .ok_or("invalid index")?
+        == [0x48, 0x4D, 0x58, 0x41]
+    {
         hmxa_to_ogg(&mut mogg_data, ogg_offset, hmx_header_size)
     }
 
     mogg_data[0] = 10;
 
     // check if not OggS
-    if mogg_data[ogg_offset..ogg_offset + 4] != [0x4f, 0x67, 0x67, 0x53]  {
+    if mogg_data
+        .get(ogg_offset..ogg_offset + 4)
+        .ok_or("invalid index")?
+        != [0x4f, 0x67, 0x67, 0x53]
+    {
         error!("failed to decrypt mogg");
         Err("failed to decrypt mogg".into())
     } else {
@@ -162,7 +184,11 @@ fn read_u64_le<T: Read>(stream: &mut T) -> Result<u64, Box<dyn Error>> {
     Ok(u64::from_le_bytes(buf))
 }
 
-fn gen_key(hv_key: &[u8; 16], mogg_data: &mut [u8], version: u32) -> Result<[u8; 16], Box<dyn Error>> {
+fn gen_key(
+    hv_key: &[u8; 16],
+    mogg_data: &mut [u8],
+    version: u32,
+) -> Result<[u8; 16], Box<dyn Error>> {
     debug!("generating ps3 key");
     let ps3 = gen_key_inner(hv_key, mogg_data, version, true)?;
     debug!("generating xbox 360 key");
@@ -186,9 +212,9 @@ fn gen_key_inner(
     let masher = get_masher();
     debug!("masher: {}", hex::encode(masher));
 
-    mogg.seek(SeekFrom::Start(16)).unwrap();
+    mogg.seek(SeekFrom::Start(16))?;
     let mut buf = [0u8; 4];
-    mogg.read_exact(&mut buf).unwrap();
+    mogg.read_exact(&mut buf)?;
     let hmx_header_size = u32::from_le_bytes(buf) as u64;
 
     if ps3_path {
@@ -197,7 +223,7 @@ fn gen_key_inner(
         mogg.seek(SeekFrom::Start(20 + hmx_header_size * 8 + 16 + 32))?;
     }
 
-    mogg.read_exact(&mut key_mask_as_read).unwrap();
+    mogg.read_exact(&mut key_mask_as_read)?;
 
     debug!("key mask as read: {}", hex::encode(key_mask_as_read));
 
@@ -578,13 +604,13 @@ fn hmxa_to_ogg(mogg_data: &mut [u8], start: usize, num_entries: usize) {
     );
     debug!("magic_a: {magic_a:08x}");
     debug!("magic_b: {magic_b:08x}");
-    
+
     let magic_hash_a = lcg(lcg(magic_a ^ 0x5c5c5c5c));
     let magic_hash_b = lcg(magic_b ^ 0x36363636);
 
     debug!("magic_hash_a: {magic_hash_a:08x}");
     debug!("magic_hash_b: {magic_hash_b:08x}");
-    
+
     mogg_data[start..][..4].copy_from_slice(&[0x4f, 0x67, 0x67, 0x53]);
 
     let slice_a = &mut mogg_data[start + 12..][..4];
