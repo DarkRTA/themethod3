@@ -59,18 +59,13 @@ pub fn decrypt_mogg(mogg_data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     };
 
     let ogg_offset = i32::from_le_bytes(
-        mogg_data
-            .get(4..4 + 4)
-            .ok_or("invalid index")?
-            .try_into()
-            .unwrap(),
+        mogg_data.get(4..4 + 4).ok_or("invalid index")?.try_into()?,
     ) as usize;
     let hmx_header_size = i32::from_le_bytes(
         mogg_data
             .get(16..16 + 4)
             .ok_or("invalid index")?
-            .try_into()
-            .unwrap(),
+            .try_into()?,
     ) as usize;
 
     let nonce_offset = 20 + hmx_header_size * 8;
